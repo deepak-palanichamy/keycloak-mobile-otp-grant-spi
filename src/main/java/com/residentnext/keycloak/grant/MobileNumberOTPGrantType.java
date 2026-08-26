@@ -2,17 +2,12 @@ package com.residentnext.keycloak.grant;
 
 import java.net.URI;
 import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.regex.Pattern;
-
 import org.keycloak.OAuthErrorException;
 import org.keycloak.events.Details;
 import org.keycloak.events.Errors;
@@ -23,18 +18,14 @@ import org.keycloak.models.ModelDuplicateException;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
-import org.keycloak.protocol.oidc.TokenManager;
 import org.keycloak.protocol.oidc.grants.OAuth2GrantTypeBase;
 import org.keycloak.services.CorsErrorResponseException;
 import org.keycloak.services.util.DefaultClientSessionContext;
-import org.keycloak.sessions.AuthenticationSessionModel;
-import org.keycloak.sessions.RootAuthenticationSessionModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.i18n.phonenumbers.NumberParseException;
 import com.google.i18n.phonenumbers.PhoneNumberUtil;
-import com.google.i18n.phonenumbers.Phonenumber;
 import com.google.i18n.phonenumbers.PhoneNumberUtil.PhoneNumberFormat;
 import com.google.i18n.phonenumbers.PhoneNumberUtil.PhoneNumberType;
 import com.google.i18n.phonenumbers.Phonenumber.PhoneNumber;
@@ -44,11 +35,6 @@ import jakarta.ws.rs.core.Response;
 public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
 
     private static final Logger logger = LoggerFactory.getLogger(MobileNumberOTPGrantType.class);
-
-    // Strict E.164: + followed by 1-15 digits (no spaces, dashes, or formatting)
-    private static final Pattern E164_PATTERN = Pattern.compile("^\\+[1-9]\\d{1,14}$");
-    // Alphanumeric or numeric OTP bounded between 4 and 10 characters
-    private static final Pattern OTP_PATTERN = Pattern.compile("^[a-zA-Z0-9]{4,10}$");
 
     private final URI otpVerifyUri;
     private final String sharedSecret;
@@ -145,9 +131,6 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
         }
 
         // 5. Create Keycloak Sessions
-        // UserSessionModel userSession = session.sessions().createUserSession(
-        // realm, user, user.getUsername(), clientConnection.getRemoteAddr(),
-        // MobileNumberOTPGrantTypeFactory.GRANT_TYPE_ID, false, null, null);
         UserSessionModel userSession = session.sessions().createUserSession(
                 null,
                 realm,
@@ -160,26 +143,16 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
                 null,
                 UserSessionModel.SessionPersistenceState.PERSISTENT);
 
-        // AuthenticatedClientSessionModel clientSession =
-        // session.sessions().createClientSession(realm, client,
-        // userSession);
-        // clientSession.setNote(OIDCLoginProtocol.ISSUER,
-        // context.getRequest().getUri().getBaseUri().toString());
-        // clientSession.setNote(OIDCLoginProtocol.SCOPE_PARAM, scope);
-
-        RootAuthenticationSessionModel rootAuthSession = session.authenticationSessions()
-                .createRootAuthenticationSession(realm);
-        AuthenticationSessionModel authSession = rootAuthSession.createAuthenticationSession(client);
-        authSession.setAuthenticatedUser(user);
-        authSession.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
-        authSession.setAuthNote(OIDCLoginProtocol.ISSUER, context.getRequest().getUri().getBaseUri().toString());
-        authSession.setAuthNote(OIDCLoginProtocol.SCOPE_PARAM, scope);
+        AuthenticatedClientSessionModel clientSession = session.sessions().createClientSession(realm, client,
+                userSession);
+        clientSession.setNote(OIDCLoginProtocol.ISSUER,
+                context.getRequest().getUri().getBaseUri().toString());
+        clientSession.setNote(OIDCLoginProtocol.SCOPE_PARAM, scope);
+        clientSession.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
 
         // 6. Generate and Return standard OAuth Tokens
-        // DefaultClientSessionContext clientSessionCtx = DefaultClientSessionContext
-        // .fromClientSessionAndScopeParameter(clientSession, scope, session);
-        ClientSessionContext clientSessionCtx = TokenManager.attachAuthenticationSession(session, userSession,
-                authSession);
+        ClientSessionContext clientSessionCtx = DefaultClientSessionContext.fromClientSessionAndScopeParameter(
+                clientSession, scope, session);
         updateUserSessionFromClientAuth(userSession);
 
         event.user(user)
@@ -188,13 +161,6 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
                 .detail(Details.USERNAME, user.getId())
                 .success();
 
-        // return Response.ok(tokenManager.responseBuilder(realm, client, event,
-        // session, userSession, clientSessionCtx)
-        // .generateAccessToken()
-        // .generateRefreshToken()
-        // .generateIDToken()
-        // .build())
-        // .build();
         return createTokenResponse(user, userSession, clientSessionCtx, scope, false, null);
     }
 
