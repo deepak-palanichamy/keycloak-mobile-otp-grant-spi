@@ -7,6 +7,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -30,6 +31,13 @@ import org.keycloak.sessions.AuthenticationSessionModel;
 import org.keycloak.sessions.RootAuthenticationSessionModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.i18n.phonenumbers.NumberParseException;
+import com.google.i18n.phonenumbers.PhoneNumberUtil;
+import com.google.i18n.phonenumbers.Phonenumber;
+import com.google.i18n.phonenumbers.PhoneNumberUtil.PhoneNumberFormat;
+import com.google.i18n.phonenumbers.PhoneNumberUtil.PhoneNumberType;
+import com.google.i18n.phonenumbers.Phonenumber.PhoneNumber;
 
 import jakarta.ws.rs.core.Response;
 
@@ -73,9 +81,13 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
         setContext(context);
         checkClient();
 
+        String countryIso = formParams.getFirst("country_iso");
         String mobileNumber = formParams.getFirst("mobile_number");
+
         String otp = formParams.getFirst("otp");
         String scope = formParams.getFirst("scope");
+
+        PhoneNumberUtil phoneUtil = PhoneNumberUtil.getInstance();
 
         // 1. Validate Input
         if (mobileNumber == null || otp == null) {
@@ -84,15 +96,46 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
                     "Missing mobile_number or otp", Response.Status.BAD_REQUEST);
         }
 
-        // 2. Verify OTP with your Custom Auth Service
-        if (!verifyOtpWithCustomService(mobileNumber, otp)) {
+        // 2. Validate Mobile Number with E164 Spec
+        countryIso = countryIso == null ? null : countryIso.trim().toUpperCase(Locale.ROOT);
+        if (countryIso == null || !phoneUtil.getSupportedRegions().contains(countryIso)) {
+            event.error(Errors.INVALID_REQUEST);
+            throw new CorsErrorResponseException(cors, OAuthErrorException.INVALID_REQUEST,
+                    "Missing or Invalid country_iso", Response.Status.BAD_REQUEST);
+        }
+
+        String e164Number = null;
+
+        try {
+            PhoneNumber parsed = phoneUtil.parse(mobileNumber, countryIso);
+            if (!phoneUtil.isValidNumberForRegion(parsed, countryIso)
+                    || phoneUtil.getNumberType(parsed) != PhoneNumberType.MOBILE) {
+                event.error(Errors.INVALID_REQUEST);
+                throw new CorsErrorResponseException(
+                        cors,
+                        OAuthErrorException.INVALID_REQUEST,
+                        "Invalid mobile number",
+                        Response.Status.BAD_REQUEST);
+            }
+            e164Number = phoneUtil.format(parsed, PhoneNumberFormat.E164);
+        } catch (NumberParseException e) {
+            event.error(Errors.INVALID_REQUEST);
+            throw new CorsErrorResponseException(
+                    cors,
+                    OAuthErrorException.INVALID_REQUEST,
+                    "Invalid mobile number",
+                    Response.Status.BAD_REQUEST);
+        }
+
+        // 3. Verify OTP with your Custom Auth Service
+        if (!verifyOtpWithCustomService(e164Number, otp)) {
             event.error(Errors.INVALID_USER_CREDENTIALS);
             throw new CorsErrorResponseException(cors, OAuthErrorException.INVALID_GRANT,
                     "Invalid or expired OTP", Response.Status.UNAUTHORIZED);
         }
 
-        // 3. Find or Auto-Provision the User
-        UserModel user = resolveOrCreateUser(mobileNumber);
+        // 4. Find or Auto-Provision the User
+        UserModel user = resolveOrCreateUser(e164Number);
 
         if (!user.isEnabled()) {
             event.user(user);
@@ -101,7 +144,7 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
                     "Account is disabled", Response.Status.BAD_REQUEST);
         }
 
-        // 4. Create Keycloak Sessions
+        // 5. Create Keycloak Sessions
         // UserSessionModel userSession = session.sessions().createUserSession(
         // realm, user, user.getUsername(), clientConnection.getRemoteAddr(),
         // MobileNumberOTPGrantTypeFactory.GRANT_TYPE_ID, false, null, null);
@@ -132,7 +175,7 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
         authSession.setAuthNote(OIDCLoginProtocol.ISSUER, context.getRequest().getUri().getBaseUri().toString());
         authSession.setAuthNote(OIDCLoginProtocol.SCOPE_PARAM, scope);
 
-        // 5. Generate and Return standard OAuth Tokens
+        // 6. Generate and Return standard OAuth Tokens
         // DefaultClientSessionContext clientSessionCtx = DefaultClientSessionContext
         // .fromClientSessionAndScopeParameter(clientSession, scope, session);
         ClientSessionContext clientSessionCtx = TokenManager.attachAuthenticationSession(session, userSession,
