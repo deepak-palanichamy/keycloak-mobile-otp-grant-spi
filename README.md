@@ -56,7 +56,7 @@ Configure the grant type via Keycloak configuration file (`keycloak.conf`) or en
 | Option | Environment Variable | Required | Description |
 |--------|---------------------|----------|-------------|
 | `verify-url` | `KC_OTP_VERIFY_URL` | Yes | HTTPS endpoint for OTP verification |
-| `shared-secret` | `KC_OTP_SHARED_SECRET` | Yes | Shared secret for authenticating with OTP service |
+| `shared-secret` | `KC_OTP_SHARED_SECRET` | Yes | Shared secret sent as a Bearer token in the Authorization header |
 | `timeout-seconds` | `KC_OTP_TIMEOUT_SECONDS` | No | Request timeout in seconds (default: 5) |
 
 ### Configuration Example
@@ -105,6 +105,7 @@ for OTP verification and user lookup. For example, `country_iso=IN` and
 ### Response
 
 On successful authentication:
+
 ```json
 {
   "access_token": "eyJhbGciOiJSUzI1NiIsInR5cC...",
@@ -122,7 +123,9 @@ On successful authentication:
 | `invalid_request` | 400 | Missing or invalid country_iso/mobile_number/otp parameters |
 | `invalid_grant` | 401 | Invalid or expired OTP |
 | `invalid_client` | 401 | Invalid client credentials |
-| `server_error` | 500 | External OTP service error |
+| `server_error` | 500 | External OTP service error or interrupted request |
+| `server_error` | 502 | OTP service could not be reached |
+| `server_error` | 504 | OTP service request timed out |
 
 ## Architecture
 
@@ -150,8 +153,8 @@ On successful authentication:
 ### User Provisioning
 
 - Users are automatically created if not found by mobile number
-- User attributes may be set based on OTP service response
-- Existing users are updated with latest attributes
+- The mobile number is stored as the user's `mobileNumber` attribute in E.164 format
+- Existing users are looked up by their `mobileNumber` attribute
 
 ## Building
 
@@ -170,7 +173,7 @@ Output: `target/keycloak-mobile-otp-grant-spi-1.0.0-SNAPSHOT.jar`
 
 ## Project Structure
 
-```
+```text
 keycloak-mobile-otp-grant-spi/
 ├── src/
 │   └── main/
@@ -188,33 +191,35 @@ keycloak-mobile-otp-grant-spi/
 
 Your external OTP verification service should:
 
-1. **Accept HTTPS POST requests** with the following payload:
+1. **Accept HTTPS POST requests** with an `Authorization` header containing the configured shared secret as a Bearer token:
+  
+  ```http
+  Authorization: Bearer your-shared-secret
+  Content-Type: application/json
+  ```
+
+  The request body contains:
+
    ```json
    {
      "mobile_number": "+1234567890",
-     "otp": "123456",
-     "shared_secret": "your-shared-secret"
+     "otp": "123456"
    }
    ```
 
-2. **Return HTTP 200** with successful verification:
-   ```json
-   {
-     "valid": true,
-     "user_attributes": {
-       "name": "John Doe",
-       "email": "john@example.com"
-     }
-   }
+2. **Return HTTP 200** with one of these plain-text response bodies for successful verification:
+
+  ```text
+   VERIFIED
    ```
 
-3. **Return HTTP 400/401** for invalid OTP:
-   ```json
-   {
-     "valid": false,
-     "error": "Invalid or expired OTP"
-   }
+   or:
+
+  ```text
+   ALREADY_VERIFIED
    ```
+
+1. **Return any non-200 status** for an invalid or rejected OTP. The grant treats it as `invalid_grant` with HTTP 401.
 
 ## Troubleshooting
 
@@ -259,6 +264,7 @@ This project is provided as-is. Please add appropriate license information here.
 ## Contributing
 
 Contributions are welcome! Please ensure:
+
 - Code follows Java conventions
 - All validations are maintained
 - Security best practices are followed
@@ -267,5 +273,6 @@ Contributions are welcome! Please ensure:
 ## Support
 
 For issues or questions, please refer to Keycloak documentation:
+
 - [Keycloak OAuth2 Grant Types](https://www.keycloak.org/docs/latest/server_development/)
 - [Keycloak SPI Development](https://www.keycloak.org/docs/latest/server_development/index.html#_providers)
