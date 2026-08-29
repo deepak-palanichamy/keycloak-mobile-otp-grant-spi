@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -44,26 +45,32 @@ import jakarta.ws.rs.core.Response;
 /**
  * Implements the mobile-number OTP OAuth 2.0 grant for Keycloak.
  *
- * <p>The grant validates a regional mobile number, verifies its OTP with an
+ * <p>
+ * The grant validates a regional mobile number, verifies its OTP with an
  * external service, provisions a matching Keycloak user when necessary, and
- * returns standard Keycloak tokens.</p>
+ * returns standard Keycloak tokens.
+ * </p>
  */
 public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
 
     private static final Logger logger = LoggerFactory.getLogger(MobileNumberOTPGrantType.class);
     private static final Set<String> SUCCESS_STATUSES = Set.of("VERIFIED", "ALREADY_VERIFIED");
+    private static final PhoneNumberUtil PHONE_NUMBER_UTIL = PhoneNumberUtil.getInstance();
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(5))
+            .build();
 
     private final URI otpVerifyUri;
     private final String sharedSecret;
     private final Duration requestTimeout;
-    // private final HttpClient httpClient;
 
     /**
      * Creates a grant handler configured for the external OTP service.
      *
-     * @param otpVerifyUri URI of the HTTPS OTP verification endpoint
-     * @param sharedSecret secret sent in the endpoint's authorization header
-     * @param requestTimeout maximum duration allowed for an OTP verification request
+     * @param otpVerifyUri   URI of the HTTPS OTP verification endpoint
+     * @param sharedSecret   secret sent in the endpoint's authorization header
+     * @param requestTimeout maximum duration allowed for an OTP verification
+     *                       request
      */
     public MobileNumberOTPGrantType(URI otpVerifyUri, String sharedSecret, Duration requestTimeout) {
         this.otpVerifyUri = otpVerifyUri;
@@ -71,32 +78,27 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
         this.requestTimeout = requestTimeout;
     }
 
-    // Reusing the Java 11+ HttpClient for external calls
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5))
-            .build();
-
-    @Override
     /**
      * Returns the Keycloak event type recorded for this grant.
      *
      * @return the login event type
      */
+    @Override
     public EventType getEventType() {
         return EventType.LOGIN;
     }
 
-    @Override
     /**
      * Returns token parameters not consumed by this grant.
      *
-     * @return an empty set because this grant defines no additional token parameters
+     * @return an empty set because this grant defines no additional token
+     *         parameters
      */
+    @Override
     public Set<String> getTokenParameterNames() {
         return Collections.emptySet();
     }
 
-    @Override
     /**
      * Processes a mobile-number OTP grant request and creates the user's
      * authenticated Keycloak session and token response.
@@ -104,19 +106,19 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
      * @param context current Keycloak grant request context
      * @return the OAuth token response
      * @throws CorsErrorResponseException if request data is invalid, the OTP is
-     *         rejected, or the user or external OTP service cannot be processed
+     *                                    rejected, or the user or external OTP
+     *                                    service cannot be processed
      */
+    @Override
     public Response process(Context context) {
         setContext(context);
         checkClient();
 
-        String countryIso = formParams.getFirst("country_iso");
+        String regionCode = formParams.getFirst("region_code");
         String mobileNumber = formParams.getFirst("mobile_number");
 
         String otp = formParams.getFirst("otp");
         String scope = formParams.getFirst("scope");
-
-        PhoneNumberUtil phoneUtil = PhoneNumberUtil.getInstance();
 
         // 1. Validate Input
         if (mobileNumber == null || otp == null) {
@@ -126,35 +128,27 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
         }
 
         // 2. Validate Mobile Number with E164 Spec
-        countryIso = countryIso == null ? null : countryIso.trim().toUpperCase(Locale.ROOT);
-        if (countryIso == null || !phoneUtil.getSupportedRegions().contains(countryIso)) {
+        regionCode = regionCode == null ? null : regionCode.trim().toUpperCase(Locale.ROOT);
+        if (regionCode == null || !PHONE_NUMBER_UTIL.getSupportedRegions().contains(regionCode)) {
             event.error(Errors.INVALID_REQUEST);
             throw new CorsErrorResponseException(cors, OAuthErrorException.INVALID_REQUEST,
-                    "Missing or Invalid country_iso", Response.Status.BAD_REQUEST);
+                    "Missing or Invalid region_code", Response.Status.BAD_REQUEST);
         }
 
-        String e164Number = null;
+        String e164Number;
 
         try {
-            PhoneNumber parsed = phoneUtil.parse(mobileNumber, countryIso);
-            if (!phoneUtil.isValidNumberForRegion(parsed, countryIso)
-                    || phoneUtil.getNumberType(parsed) != PhoneNumberType.MOBILE) {
-                event.error(Errors.INVALID_REQUEST);
-                throw new CorsErrorResponseException(
-                        cors,
-                        OAuthErrorException.INVALID_REQUEST,
-                        "Invalid mobile number",
-                        Response.Status.BAD_REQUEST);
-            }
-            e164Number = phoneUtil.format(parsed, PhoneNumberFormat.E164);
-        } catch (NumberParseException e) {
+            e164Number = validateAndNormalizeMobileNumber(mobileNumber, regionCode);
+        } catch (IllegalArgumentException e) {
             event.error(Errors.INVALID_REQUEST);
             throw new CorsErrorResponseException(
                     cors,
                     OAuthErrorException.INVALID_REQUEST,
-                    "Invalid mobile number",
+                    e.getMessage(),
                     Response.Status.BAD_REQUEST);
         }
+
+        logger.info("Formatted E.164 mobile number: {}", e164Number);
 
         // 3. Verify OTP with your Custom Auth Service
         if (!verifyOtpWithCustomService(e164Number, otp)) {
@@ -207,6 +201,29 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
         return createTokenResponse(user, userSession, clientSessionCtx, scope, false, null);
     }
 
+    static String validateAndNormalizeMobileNumber(String mobileNumber, String regionCode) {
+        if (mobileNumber == null || mobileNumber.isBlank()) {
+            throw new IllegalArgumentException("Missing mobile_number");
+        }
+
+        String normalizedRegionCode = regionCode == null ? null : regionCode.trim().toUpperCase(Locale.ROOT);
+        if (normalizedRegionCode == null || normalizedRegionCode.isBlank()
+                || !PHONE_NUMBER_UTIL.getSupportedRegions().contains(normalizedRegionCode)) {
+            throw new IllegalArgumentException("Missing or Invalid region_code");
+        }
+
+        try {
+            PhoneNumber parsed = PHONE_NUMBER_UTIL.parse(mobileNumber.trim(), normalizedRegionCode);
+            if (PHONE_NUMBER_UTIL.getNumberType(parsed) != PhoneNumberType.MOBILE
+                    || !PHONE_NUMBER_UTIL.isValidNumberForRegion(parsed, normalizedRegionCode)) {
+                throw new IllegalArgumentException("Invalid mobile number");
+            }
+            return PHONE_NUMBER_UTIL.format(parsed, PhoneNumberFormat.E164);
+        } catch (NumberParseException e) {
+            throw new IllegalArgumentException("Invalid mobile number", e);
+        }
+    }
+
     /**
      * Finds the user associated with a canonical mobile number or provisions a
      * new enabled user when no match exists.
@@ -214,7 +231,7 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
      * @param mobileNumber canonical E.164 mobile number
      * @return the existing or newly created user
      * @throws CorsErrorResponseException if a concurrent creation conflict
-     *         cannot be resolved
+     *                                    cannot be resolved
      */
     private UserModel resolveOrCreateUser(String mobileNumber) {
         // UserModel user = session.users().getUserByUsername(realm, canonicalPhone);
@@ -248,23 +265,24 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
      * Finds the first user whose attribute matches the supplied value.
      *
      * @param attribute user attribute name
-     * @param value attribute value
+     * @param value     attribute value
      * @return an optional matching user
      */
     private Optional<UserModel> getUniqueUserByAttribute(String attribute, String value) {
-        Optional<UserModel> optUser = session.users().searchForUserByUserAttributeStream(realm, attribute, value)
+        return session.users().searchForUserByUserAttributeStream(realm, attribute, value)
+                .filter(Objects::nonNull)
                 .findFirst();
-        return optUser;
     }
 
     /**
      * Verifies an OTP through the configured external service.
      *
      * @param mobileNumber canonical E.164 mobile number
-     * @param otp one-time password to verify
-     * @return {@code true} when the service returns a successful verification status
+     * @param otp          one-time password to verify
+     * @return {@code true} when the service returns a successful verification
+     *         status
      * @throws CorsErrorResponseException if the service times out, cannot be
-     *         reached, or fails unexpectedly
+     *                                    reached, or fails unexpectedly
      */
     private boolean verifyOtpWithCustomService(String mobileNumber, String otp) {
         try {
@@ -280,13 +298,19 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
                     .POST(HttpRequest.BodyPublishers.ofString(requestBodyJson))
                     .build();
 
-            HttpResponse<String> response = httpClient.send(request,
+            HttpResponse<String> response = HTTP_CLIENT.send(request,
                     HttpResponse.BodyHandlers.ofString());
 
             // Returns true only if your service responds with 200 OK and
             // 'VERIFIED'/'ALREADY_VERIFIED' body
             // Return false for any-other status-code
-            String verificationStatus = response.body().trim();
+            String responseBody = response.body();
+            if (responseBody == null || responseBody.isBlank()) {
+                logger.info("OTP verification failed. Empty response body");
+                return false;
+            }
+
+            String verificationStatus = responseBody.trim();
             if ((response.statusCode() == HttpStatus.SC_OK)
                     && SUCCESS_STATUSES.contains(verificationStatus)) {
                 logger.info("OTP verification successful. status: {}", verificationStatus);
@@ -312,7 +336,7 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
         } catch (RuntimeException e) {
             logger.error("Unexpected error while verifying OTP for mobile number {}", mobileNumber, e);
             throw new CorsErrorResponseException(cors, OAuthErrorException.SERVER_ERROR,
-                    "Unable to verify OTP", Response.Status.INTERNAL_SERVER_ERROR);
+                    "An unexpected error occurred during OTP verification", Response.Status.INTERNAL_SERVER_ERROR);
         }
     }
 
