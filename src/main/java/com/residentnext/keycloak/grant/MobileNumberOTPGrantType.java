@@ -116,8 +116,9 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
 
         String regionCode = formParams.getFirst("region_code");
         String mobileNumber = formParams.getFirst("mobile_number");
-
         String otp = formParams.getFirst("otp");
+        String transId = formParams.getFirst("transaction_id");
+
         String scope = formParams.getFirst("scope");
 
         // 1. Validate Input
@@ -151,7 +152,7 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
         logger.info("Formatted E.164 mobile number: {}", e164Number);
 
         // 3. Verify OTP with your Custom Auth Service
-        if (!verifyOtpWithCustomService(e164Number, otp)) {
+        if (!verifyOtpWithCustomService(regionCode, e164Number, otp, transId)) {
             event.error(Errors.INVALID_USER_CREDENTIALS);
             throw new CorsErrorResponseException(cors, OAuthErrorException.INVALID_GRANT,
                     "Invalid or expired OTP", Response.Status.UNAUTHORIZED);
@@ -284,22 +285,27 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
      * @throws CorsErrorResponseException if the service times out, cannot be
      *                                    reached, or fails unexpectedly
      */
-    private boolean verifyOtpWithCustomService(String mobileNumber, String otp) {
+    private boolean verifyOtpWithCustomService(String countryIso, String mobileNumber, String otp,
+            String transactionId) {
         try {
             String requestBodyJson = JsonSerialization.writeValueAsString(Map.of(
-                    "mobile_number", mobileNumber,
-                    "otp", otp));
+                    "countryIso", countryIso,
+                    "mobileNumber", mobileNumber,
+                    "otp", otp,
+                    "transactionId", transactionId));
+            logger.info("requestBodyJson: {}", requestBodyJson);
 
             HttpRequest request = HttpRequest.newBuilder()
                     .timeout(requestTimeout)
                     .uri(otpVerifyUri)
                     .header("Content-Type", MediaType.APPLICATION_JSON)
-                    .header("Authorization", "Bearer " + sharedSecret)
+                    // .header("Authorization", "Bearer " + sharedSecret)
                     .POST(HttpRequest.BodyPublishers.ofString(requestBodyJson))
                     .build();
 
             HttpResponse<String> response = HTTP_CLIENT.send(request,
                     HttpResponse.BodyHandlers.ofString());
+            logger.info("response: {}", response.body());
 
             // Returns true only if your service responds with 200 OK and
             // 'VERIFIED'/'ALREADY_VERIFIED' body
