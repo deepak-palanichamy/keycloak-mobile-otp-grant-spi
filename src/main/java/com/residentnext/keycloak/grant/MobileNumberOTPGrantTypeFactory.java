@@ -59,19 +59,19 @@ public class MobileNumberOTPGrantTypeFactory implements OAuth2GrantTypeFactory {
         }
     }
 
-    @Override
     /**
      * Performs post-initialization work after all Keycloak providers are loaded.
-     *
-     * @param factory Keycloak session factory
-     */
+    *
+    * @param factory Keycloak session factory
+    */
+    @Override
     public void postInit(KeycloakSessionFactory factory) {
     }
 
-    @Override
     /**
      * Releases factory resources. This implementation has no resources to close.
-     */
+    */
+    @Override
     public void close() {
     }
 
