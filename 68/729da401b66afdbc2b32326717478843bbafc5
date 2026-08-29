@@ -1,0 +1,15 @@
+src/main/java/com/residentnext/keycloak/grant/MobileNumberOTPGrantTypeFactory.java
+  h_8089bbf333bffc 67,74
+  h_8089bbf333bffc 64-66,73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "68729da401b66afdbc2b32326717478843bbafc5",
+  "prompts": {},
+  "humans": {
+    "h_8089bbf333bffc": {
+      "author": "Deepak Palanisamy <deepakpalanichamy@gmail.com>"
+    }
+  }
+}
