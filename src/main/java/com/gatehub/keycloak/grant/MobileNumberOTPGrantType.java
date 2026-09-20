@@ -185,7 +185,7 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
         AuthenticatedClientSessionModel clientSession = session.sessions().createClientSession(realm, client,
                 userSession);
         clientSession.setNote(OIDCLoginProtocol.ISSUER,
-                context.getRequest().getUri().getBaseUri().toString());
+                context.getRequest().getUri().getBaseUri().toString() + "realms/" + realm.getName());
         clientSession.setNote(OIDCLoginProtocol.SCOPE_PARAM, scope);
         clientSession.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
 
