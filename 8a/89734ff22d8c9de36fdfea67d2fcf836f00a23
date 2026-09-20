@@ -1,0 +1,32 @@
+src/test/java/com/residentnext/keycloak/grant/MobileNumberOTPGrantTypeTest.java
+  h_8089bbf333bffc 11-12
+.github/workflows/ci.yml
+  s_10ca6e0ef4fc23::t_0a082306c8e998 19,24-25,37
+  s_10ca6e0ef4fc23::t_a3efbc3618259d 5-7,12-13,27,29-35
+  h_8089bbf333bffc 1-4,8-11,14-18,20-23,26,28,36
+src/main/java/com/gatehub/keycloak/grant/MobileNumberOTPGrantType.java
+  h_8089bbf333bffc 1,183,206,303
+src/main/java/com/gatehub/keycloak/grant/MobileNumberOTPGrantTypeFactory.java
+  h_8089bbf333bffc 1,47-48,53,58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8a89734ff22d8c9de36fdfea67d2fcf836f00a23",
+  "prompts": {},
+  "humans": {
+    "h_8089bbf333bffc": {
+      "author": "Deepak Palanisamy <deepakpalanichamy@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_10ca6e0ef4fc23": {
+      "agent_id": {
+        "tool": "cline",
+        "id": "conv_1789893079364_cervwxk",
+        "model": "unknown"
+      },
+      "human_author": "Deepak Palanisamy <deepakpalanichamy@gmail.com>"
+    }
+  }
+}
