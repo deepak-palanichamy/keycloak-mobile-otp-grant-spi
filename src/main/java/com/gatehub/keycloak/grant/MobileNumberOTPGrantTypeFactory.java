@@ -1,4 +1,4 @@
-package com.residentnext.keycloak.grant;
+package com.gatehub.keycloak.grant;
 
 import java.net.URI;
 import java.time.Duration;
@@ -44,18 +44,18 @@ public class MobileNumberOTPGrantTypeFactory implements OAuth2GrantTypeFactory {
     public void init(Scope config) {
         // Reads from keycloak.conf (spi-oauth2-grant-type-urn-custom-mobile-otp-*) or
         // env vars
-        String urlStr = config.get("verify-url", System.getenv("KC_OTP_VERIFY_URL"));
-        this.sharedSecret = config.get("shared-secret", System.getenv("KC_OTP_SHARED_SECRET"));
+        String urlStr = config.get("validation-url", System.getenv("KC_USER_OTP_VALIDATION_URL"));
+        this.sharedSecret = config.get("shared-secret", System.getenv("KC_USER_OTP_SHARED_SECRET"));
         int timeoutSec = config.getInt("timeout-seconds", 5);
         this.requestTimeout = Duration.ofSeconds(timeoutSec);
 
         if (urlStr == null || this.sharedSecret == null) {
-            throw new IllegalStateException("Mobile OTP SPI: Both verify-url and shared-secret must be configured.");
+            throw new IllegalStateException("Mobile OTP SPI: Both validation-url and shared-secret must be configured.");
         }
 
         this.otpVerifyUri = URI.create(urlStr);
         if (!"https".equalsIgnoreCase(this.otpVerifyUri.getScheme())) {
-            throw new IllegalStateException("Mobile OTP SPI: verify-url MUST use HTTPS protocol.");
+            throw new IllegalStateException("Mobile OTP SPI: validation-url MUST use HTTPS protocol.");
         }
     }
 

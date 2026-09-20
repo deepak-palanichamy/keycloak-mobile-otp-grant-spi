@@ -1,4 +1,4 @@
-package com.residentnext.keycloak.grant;
+package com.gatehub.keycloak.grant;
 
 import java.io.IOException;
 import java.net.URI;
@@ -180,6 +180,7 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
                 null,
                 null,
                 UserSessionModel.SessionPersistenceState.PERSISTENT);
+        userSession.setNote("otp_verified", e164Number);
 
         AuthenticatedClientSessionModel clientSession = session.sessions().createClientSession(realm, client,
                 userSession);
@@ -202,7 +203,7 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
         return createTokenResponse(user, userSession, clientSessionCtx, scope, false, null);
     }
 
-    static String validateAndNormalizeMobileNumber(String mobileNumber, String regionCode) {
+    public static String validateAndNormalizeMobileNumber(String mobileNumber, String regionCode) {
         if (mobileNumber == null || mobileNumber.isBlank()) {
             throw new IllegalArgumentException("Missing mobile_number");
         }
@@ -299,7 +300,7 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
                     .timeout(requestTimeout)
                     .uri(otpVerifyUri)
                     .header("Content-Type", MediaType.APPLICATION_JSON)
-                    // .header("Authorization", "Bearer " + sharedSecret)
+                    .header("X-Internal-Secret", sharedSecret)
                     .POST(HttpRequest.BodyPublishers.ofString(requestBodyJson))
                     .build();
 
