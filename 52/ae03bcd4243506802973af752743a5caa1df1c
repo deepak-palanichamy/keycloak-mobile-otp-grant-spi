@@ -1,0 +1,16 @@
+src/main/resources/META-INF/services/org.keycloak.protocol.oidc.grants.OAuth2GrantTypeFactory
+  h_8089bbf333bffc 1
+.github/workflows/ci.yml
+  h_8089bbf333bffc 4-8,11-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "52ae03bcd4243506802973af752743a5caa1df1c",
+  "prompts": {},
+  "humans": {
+    "h_8089bbf333bffc": {
+      "author": "Deepak Palanisamy <deepakpalanichamy@gmail.com>"
+    }
+  }
+}
