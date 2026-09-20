@@ -1,1 +1,1 @@
-com.residentnext.keycloak.grant.MobileNumberOTPGrantTypeFactory
+com.gatehub.keycloak.grant.MobileNumberOTPGrantTypeFactory

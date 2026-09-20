@@ -1,37 +1,35 @@
 name: CI/CD Pipeline
 
 on:
-  push:
-    branches: [ "main", "E164-Implementation" ]
-  pull_request:
-    branches: [ "main", "E164-Implementation" ]
-  workflow_dispatch:
+    push:
+        branches: ["main", "E164-Implementation"]
+    pull_request:
+        branches: ["main", "E164-Implementation"]
+    workflow_dispatch:
 
 jobs:
-  build-and-test:
-    name: Build & Test (Java 21 / Maven)
-    runs-on: [self-hosted, local]
+    build-and-test:
+        name: Build & Test (Java 21 / Maven)
+        runs-on: [self-hosted, local]
 
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v4
 
-      - name: Display Runner & Tooling Environment
-        run: |
-          echo "Running on host: $(hostname)"
-          echo "User: $(whoami)"
-          echo "Working Directory: $(pwd)"
-          java -version
-          mvn -version
+            - name: Display Runner & Tooling Environment
+              run: |
+                  echo "Running on host: $(hostname)"
+                  echo "User: $(whoami)"
+                  echo "Working Directory: $(pwd)"
+                  java -version
+                  mvn -version
 
-      - name: Build and Test with Maven
-        run: mvn -B clean verify install
+            - name: Build and Test with Maven
+              run: mvn -B clean verify install
 
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: keycloak-mobile-otp-grant-spi
-          path: target/*.jar
-          if-no-files-found: error
-
-
+            - name: Upload Build Artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: keycloak-mobile-otp-grant-spi
+                  path: target/*.jar
+                  if-no-files-found: error
