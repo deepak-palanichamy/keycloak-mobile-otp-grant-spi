@@ -1,0 +1,60 @@
+README.md
+  s_5f45b530becb30::t_b98842e5ec46d7 9
+  s_5f45b530becb30::t_5b187ac07864f8 246,248-249
+  s_5f45b530becb30::t_2dc0d62566cfc9 123-124,136,138,148,154,156-158
+src/test/java/com/residentnext/keycloak/grant/MobileNumberOTPGrantTypeTest.java
+  s_5f45b530becb30::t_aec323f2dfb885 382,387,389,392-393
+  s_5f45b530becb30::t_cb79680a3948eb 383-386
+  s_5f45b530becb30::t_9c213894de7fc8 84-85
+  s_5f45b530becb30::t_038b76f06d47fb 390-391
+  s_5f45b530becb30::t_6df9858ff018da 164-165,180-182
+  s_5f45b530becb30::t_fdf333dcaaa951 183-184
+  s_5f45b530becb30::t_4800bc380287ed 379
+  s_5f45b530becb30::t_0db23f4955cac5 161
+  s_5f45b530becb30::t_228ce414db1d03 171
+  s_5f45b530becb30::t_c52970493336c9 5,7-12,14-24,29-47,51,54-56,61-78,80-83,122-154,156-160,162-163,166-170,172-179,185,202
+  s_5f45b530becb30::t_740f200d22c4dc 404-531
+  s_5f45b530becb30::t_1003f76163c1cf 48
+  s_5f45b530becb30::t_6a8d16aa8dce5a 186-201
+  s_5f45b530becb30::t_5f4106cf649921 79,155
+  s_5f45b530becb30::t_103a029802b0ad 53,57,86-121
+  s_5f45b530becb30::t_492e0aff3e721f 6
+  s_5f45b530becb30::t_166736f3313b4b 388
+  s_5f45b530becb30::t_f5837cc6fa343a 299-375,378,394-403
+  s_5f45b530becb30::t_8acd62efa4afd8 376-377
+  s_5f45b530becb30::t_e6a1295f56b3f3 380-381
+  s_5f45b530becb30::t_a6136546258ac6 52
+  s_5f45b530becb30::t_51ce3327e3b5e8 203
+src/main/java/com/gatehub/keycloak/grant/MobileNumberOTPGrantType.java
+  s_5f45b530becb30::t_02da03d2104a43 161-162
+  s_5f45b530becb30::t_606d22f84bc35b 273-280
+  s_5f45b530becb30::t_c864da77d69c5b 200
+  s_5f45b530becb30::t_5349114d18a70e 11
+  h_8089bbf333bffc 58,60,155,270
+  s_5f45b530becb30::t_ced5e57f4a4943 229,232-233,235-244
+  s_5f45b530becb30::t_396c141ad38532 49
+src/main/java/com/gatehub/keycloak/grant/MobileNumberOTPGrantTypeFactory.java
+  h_8089bbf333bffc 11-12,19-20,23,54-64
+  h_8089bbf333bffc 46,67-68,79-81,88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8327c7abbf29459bf6af41815594c16d3e47b1d6",
+  "prompts": {},
+  "humans": {
+    "h_8089bbf333bffc": {
+      "author": "Deepak Palanisamy <deepakpalanichamy@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_5f45b530becb30": {
+      "agent_id": {
+        "tool": "cline",
+        "id": "conv_1790107470125_uxn0fk7",
+        "model": "unknown"
+      },
+      "human_author": "Deepak Palanisamy <deepakpalanichamy@gmail.com>"
+    }
+  }
+}
