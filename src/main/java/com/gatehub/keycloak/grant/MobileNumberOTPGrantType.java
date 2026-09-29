@@ -8,12 +8,12 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 
 import org.apache.http.HttpStatus;
 import org.keycloak.OAuthErrorException;
@@ -22,7 +22,6 @@ import org.keycloak.events.Errors;
 import org.keycloak.events.EventType;
 import org.keycloak.models.AuthenticatedClientSessionModel;
 import org.keycloak.models.ClientSessionContext;
-import org.keycloak.models.ModelDuplicateException;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
@@ -47,7 +46,7 @@ import jakarta.ws.rs.core.Response;
  *
  * <p>
  * The grant validates a regional mobile number, verifies its OTP with an
- * external service, provisions a matching Keycloak user when necessary, and
+ * external service, looks up the matching Keycloak user by mobile number, and
  * returns standard Keycloak tokens.
  * </p>
  */
@@ -56,8 +55,9 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
     private static final Logger logger = LoggerFactory.getLogger(MobileNumberOTPGrantType.class);
     private static final Set<String> SUCCESS_STATUSES = Set.of("VERIFIED", "ALREADY_VERIFIED");
     private static final PhoneNumberUtil PHONE_NUMBER_UTIL = PhoneNumberUtil.getInstance();
+    private static final int DEFAULT_HTTP_CONNECT_TIMEOUT_INSEC = 5;
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5))
+            .connectTimeout(Duration.ofSeconds(DEFAULT_HTTP_CONNECT_TIMEOUT_INSEC))
             .build();
 
     private final URI otpVerifyUri;
@@ -152,14 +152,14 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
         logger.info("Formatted E.164 mobile number: {}", e164Number);
 
         // 3. Verify OTP with your Custom Auth Service
-        if (!verifyOtpWithCustomService(regionCode, e164Number, otp, transId)) {
+        if (!verifyOtpWithCustomAuthService(regionCode, e164Number, otp, transId)) {
             event.error(Errors.INVALID_USER_CREDENTIALS);
             throw new CorsErrorResponseException(cors, OAuthErrorException.INVALID_GRANT,
                     "Invalid or expired OTP", Response.Status.UNAUTHORIZED);
         }
 
-        // 4. Find or Auto-Provision the User
-        UserModel user = resolveOrCreateUser(e164Number);
+        // 4. Find the User
+        UserModel user = resolveUser(e164Number);
 
         if (!user.isEnabled()) {
             event.user(user);
@@ -197,8 +197,7 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
         event.user(user)
                 .session(userSession)
                 .detail(Details.AUTH_METHOD, "mobilenumber_otp")
-                .detail(Details.USERNAME, user.getId())
-                .success();
+                .detail(Details.USERNAME, user.getId());
 
         return createTokenResponse(user, userSession, clientSessionCtx, scope, false, null);
     }
@@ -227,40 +226,22 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
     }
 
     /**
-     * Finds the user associated with a canonical mobile number or provisions a
-     * new enabled user when no match exists.
+     * Finds the user associated with a canonical mobile number.
      *
      * @param mobileNumber canonical E.164 mobile number
-     * @return the existing or newly created user
-     * @throws CorsErrorResponseException if a concurrent creation conflict
-     *                                    cannot be resolved
+     * @return the existing user
+     * @throws CorsErrorResponseException if no user is found with the mobile number
      */
-    private UserModel resolveOrCreateUser(String mobileNumber) {
-        // UserModel user = session.users().getUserByUsername(realm, canonicalPhone);
-        UserModel user = null;
-        Optional<UserModel> optUser = getUniqueUserByAttribute("mobileNumber", mobileNumber);
-        if (optUser.isPresent()) {
-            user = optUser.get();
-            return user;
-        }
-
-        try {
-            String userId = UUID.randomUUID().toString();
-            user = session.users().addUser(realm, userId);
-            user.setEnabled(true);
-            user.setSingleAttribute("mobileNumber", mobileNumber);
-            return user;
-        } catch (ModelDuplicateException e) {
-            // Concurrent request created user between our read and write; fetch again
-            logger.warn("Concurrent user creation conflict for {0}. Retrying lookup.", mobileNumber);
-            Optional<UserModel> optUserRecheck = getUniqueUserByAttribute("mobileNumber", mobileNumber);
-            if (optUserRecheck.isPresent()) {
-                user = optUserRecheck.get();
-                return user;
-            }
-            throw new CorsErrorResponseException(cors, OAuthErrorException.SERVER_ERROR,
-                    "Unable to resolve user profile", Response.Status.INTERNAL_SERVER_ERROR);
-        }
+    private UserModel resolveUser(String mobileNumber) {
+        return getUniqueUserByAttribute("mobileNumber", mobileNumber)
+                .orElseThrow(() -> {
+                    event.error(Errors.USER_NOT_FOUND);
+                    return new CorsErrorResponseException(
+                            cors,
+                            OAuthErrorException.INVALID_GRANT,
+                            "User not found",
+                            Response.Status.BAD_REQUEST);
+                });
     }
 
     /**
@@ -286,14 +267,17 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
      * @throws CorsErrorResponseException if the service times out, cannot be
      *                                    reached, or fails unexpectedly
      */
-    private boolean verifyOtpWithCustomService(String countryIso, String mobileNumber, String otp,
+    private boolean verifyOtpWithCustomAuthService(String countryIso, String mobileNumber, String otp,
             String transactionId) {
         try {
-            String requestBodyJson = JsonSerialization.writeValueAsString(Map.of(
-                    "countryIso", countryIso,
-                    "mobileNumber", mobileNumber,
-                    "otp", otp,
-                    "transactionId", transactionId));
+            Map<String, String> payload = new HashMap<>();
+            payload.put("countryIso", countryIso);
+            payload.put("mobileNumber", mobileNumber);
+            payload.put("otp", otp);
+            if (transactionId != null) {
+                payload.put("transactionId", transactionId);
+            }
+            String requestBodyJson = JsonSerialization.writeValueAsString(payload);
             logger.info("requestBodyJson: {}", requestBodyJson);
 
             HttpRequest request = HttpRequest.newBuilder()

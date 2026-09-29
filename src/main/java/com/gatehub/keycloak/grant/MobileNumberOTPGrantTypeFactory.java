@@ -8,14 +8,19 @@ import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.protocol.oidc.grants.OAuth2GrantType;
 import org.keycloak.protocol.oidc.grants.OAuth2GrantTypeFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Creates and configures instances of the mobile-number OTP grant for Keycloak.
  */
 public class MobileNumberOTPGrantTypeFactory implements OAuth2GrantTypeFactory {
 
+    private static final Logger logger = LoggerFactory.getLogger(MobileNumberOTPGrantTypeFactory.class);
+
     public static final String GRANT_TYPE_ID = "urn:custom:mobilenumber_otp";
     public static final String GRANT_TYPE_SHORTCUT = "mno";
+    public static final int DEFAULT_REQUEST_TIMEOUT_INSEC = 30;
 
     private URI otpVerifyUri;
     private String sharedSecret;
@@ -38,7 +43,7 @@ public class MobileNumberOTPGrantTypeFactory implements OAuth2GrantTypeFactory {
      * configuration or their environment-variable fallbacks.
      *
      * @param config provider configuration scope
-     * @throws IllegalStateException if the endpoint or shared secret is missing
+     * @throws IllegalStateException    if the endpoint or shared secret is missing
      * @throws IllegalArgumentException if the endpoint URI is invalid
      */
     public void init(Scope config) {
@@ -46,11 +51,21 @@ public class MobileNumberOTPGrantTypeFactory implements OAuth2GrantTypeFactory {
         // env vars
         String urlStr = config.get("validation-url", System.getenv("KC_USER_OTP_VALIDATION_URL"));
         this.sharedSecret = config.get("shared-secret", System.getenv("KC_USER_OTP_SHARED_SECRET"));
-        int timeoutSec = config.getInt("timeout-seconds", 5);
-        this.requestTimeout = Duration.ofSeconds(timeoutSec);
+        String timeoutSec = config.get("timeout-seconds", System.getenv("KC_USER_OTP_TIMEOUT_SECONDS"));
+        int requestTimeoutInSec = Integer.valueOf(timeoutSec);
+        if (requestTimeoutInSec <= 0) {
+            logger.info("Mobile OTP SPI: Invalid timeout-seconds configured, using default value "
+                    + DEFAULT_REQUEST_TIMEOUT_INSEC
+                    + " seconds.");
+            requestTimeoutInSec = DEFAULT_REQUEST_TIMEOUT_INSEC;
+        }
+        // Convert timeout to Duration
+        // Note: Duration.ofSeconds() is used here because the timeout is in seconds.
+        this.requestTimeout = Duration.ofSeconds(requestTimeoutInSec);
 
         if (urlStr == null || this.sharedSecret == null) {
-            throw new IllegalStateException("Mobile OTP SPI: Both validation-url and shared-secret must be configured.");
+            throw new IllegalStateException(
+                    "Mobile OTP SPI: Both validation-url and shared-secret must be configured.");
         }
 
         this.otpVerifyUri = URI.create(urlStr);
@@ -61,16 +76,16 @@ public class MobileNumberOTPGrantTypeFactory implements OAuth2GrantTypeFactory {
 
     /**
      * Performs post-initialization work after all Keycloak providers are loaded.
-    *
-    * @param factory Keycloak session factory
-    */
+     *
+     * @param factory Keycloak session factory
+     */
     @Override
     public void postInit(KeycloakSessionFactory factory) {
     }
 
     /**
      * Releases factory resources. This implementation has no resources to close.
-    */
+     */
     @Override
     public void close() {
     }

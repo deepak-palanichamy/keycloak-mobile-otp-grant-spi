@@ -6,7 +6,7 @@ A custom OAuth2 Grant Type SPI (Service Provider Interface) for Keycloak that en
 
 - **Custom OAuth2 Grant Type**: Implements `urn:custom:mobilenumber_otp` grant for Keycloak
 - **Mobile-First Authentication**: Authenticate users via mobile number and OTP
-- **Automatic User Provisioning**: Automatically creates users if they don't exist (based on mobile number)
+- **User Lookup by Mobile Number**: Looks up existing users by their `mobileNumber` user attribute
 - **External OTP Verification**: Integrates with external OTP verification services via HTTPS
 - **Mobile Number Validation**: Validates national numbers against the supplied ISO 3166-1 alpha-2 region
 - **E.164 Canonicalization**: Converts validated numbers to E.164 before OTP verification and user lookup
@@ -120,7 +120,8 @@ On successful authentication:
 
 | Error | Status | Description |
 |-------|--------|-------------|
-| `invalid_request` | 400 | Missing or invalid country_iso/mobile_number/otp parameters |
+| `invalid_request` | 400 | Missing or invalid region_code/mobile_number/otp parameters |
+| `invalid_grant` | 400 | User not found or account is disabled |
 | `invalid_grant` | 401 | Invalid or expired OTP |
 | `invalid_client` | 401 | Invalid client credentials |
 | `server_error` | 500 | External OTP service error or interrupted request |
@@ -132,9 +133,9 @@ On successful authentication:
 ### Components
 
 - **MobileNumberOTPGrantType**: Main grant type implementation extending `OAuth2GrantTypeBase`
-  - Validates the country ISO and mobile number, then canonicalizes the number to E.164
+  - Validates the region code and mobile number, then canonicalizes the number to E.164
   - Verifies OTP with external service
-  - Creates or retrieves user based on mobile number
+  - Retrieves existing user based on mobile number
   - Issues access tokens via Keycloak's TokenManager
 
 - **MobileNumberOTPGrantTypeFactory**: Factory implementation for grant type instantiation
@@ -144,17 +145,17 @@ On successful authentication:
 
 ### Validation
 
-- **Country**: Must be a supported ISO 3166-1 alpha-2 region code. Input is trimmed and normalized to uppercase.
+- **Country/Region**: Must be a supported ISO 3166-1 alpha-2 region code. Input is trimmed and normalized to uppercase.
 - **Phone Number**: Parsed with `libphonenumber`, validated for the supplied region with `isValidNumberForRegion`, and required to have type `MOBILE`.
 - **Canonical Format**: Valid numbers are converted to E.164, such as `+919876543210`.
 - **OTP**: Passed to the external OTP service for verification.
 - **HTTPS**: Requires HTTPS for external OTP service communication
 
-### User Provisioning
+### User Resolution
 
-- Users are automatically created if not found by mobile number
-- The mobile number is stored as the user's `mobileNumber` attribute in E.164 format
-- Existing users are looked up by their `mobileNumber` attribute
+- Existing users are looked up by their `mobileNumber` attribute matching the canonical E.164 mobile number
+- If no user is found with the mobile number, the grant returns `invalid_grant` (400 Bad Request)
+- If the resolved user account is disabled, the grant returns `invalid_grant` (400 Bad Request)
 
 ## Building
 
@@ -242,11 +243,10 @@ Your external OTP verification service should:
 - Verify `shared-secret` matches between Keycloak and OTP service
 - Increase `timeout-seconds` if service is slow
 
-### User Provisioning Issues
+### User Lookup Issues
 
-- Check user creation permissions in Keycloak realm
-- Verify `country_iso` is a supported ISO 3166-1 alpha-2 code
-- Verify `mobile_number` is a valid mobile number for that region
+- Verify the user exists in Keycloak with the `mobileNumber` attribute set to the canonical E.164 format (e.g. `+919876543210`)
+- Verify the user account is enabled
 - Check Keycloak logs for detailed error messages
 
 ## Security Considerations
