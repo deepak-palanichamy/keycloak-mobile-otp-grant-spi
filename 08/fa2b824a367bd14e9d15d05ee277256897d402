@@ -1,0 +1,27 @@
+src/test/java/com/residentnext/keycloak/grant/MobileNumberOTPGrantTypeTest.java
+  s_d840b27b982b01::t_c74401009a0f7d 59,357-363
+  s_d840b27b982b01::t_4a7def69c5ccf2 45,50,410
+src/main/java/com/gatehub/keycloak/grant/MobileNumberOTPGrantType.java
+  h_8089bbf333bffc 31,188-196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "08fa2b824a367bd14e9d15d05ee277256897d402",
+  "prompts": {},
+  "humans": {
+    "h_8089bbf333bffc": {
+      "author": "Deepak Palanisamy <deepakpalanichamy@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_d840b27b982b01": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "a726f609-fb18-483f-82f7-c75bbb44d9c2",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Deepak Palanisamy <deepakpalanichamy@gmail.com>"
+    }
+  }
+}
