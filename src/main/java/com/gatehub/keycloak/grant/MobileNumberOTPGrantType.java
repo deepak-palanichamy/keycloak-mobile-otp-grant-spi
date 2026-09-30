@@ -28,6 +28,7 @@ import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.grants.OAuth2GrantTypeBase;
 import org.keycloak.services.CorsErrorResponseException;
 import org.keycloak.services.util.DefaultClientSessionContext;
+import org.keycloak.urls.UrlType;
 import org.keycloak.util.JsonSerialization;
 import org.keycloak.utils.MediaType;
 import org.slf4j.Logger;
@@ -184,8 +185,15 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
 
         AuthenticatedClientSessionModel clientSession = session.sessions().createClientSession(realm, client,
                 userSession);
-        clientSession.setNote(OIDCLoginProtocol.ISSUER,
-                context.getRequest().getUri().getBaseUri().toString() + "realms/" + realm.getName());
+        String issuer = session.getContext()
+                .getUri(UrlType.FRONTEND)
+                .getBaseUriBuilder()
+                .path("realms")
+                .path(realm.getName())
+                .build()
+                .toString();
+
+        clientSession.setNote(OIDCLoginProtocol.ISSUER, issuer);
         clientSession.setNote(OIDCLoginProtocol.SCOPE_PARAM, scope);
         clientSession.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
 

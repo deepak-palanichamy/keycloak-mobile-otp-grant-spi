@@ -42,10 +42,12 @@ import org.keycloak.models.UserModel;
 import org.keycloak.models.UserProvider;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.models.UserSessionProvider;
+import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.TokenManager;
 import org.keycloak.protocol.oidc.grants.OAuth2GrantType.Context;
 import org.keycloak.services.CorsErrorResponseException;
 import org.keycloak.services.cors.Cors;
+import org.keycloak.urls.UrlType;
 
 import com.gatehub.keycloak.grant.MobileNumberOTPGrantType;
 import com.sun.net.httpserver.HttpServer;
@@ -54,6 +56,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriBuilder;
 import jakarta.ws.rs.ext.RuntimeDelegate;
 
 class MobileNumberOTPGrantTypeTest {
@@ -351,6 +354,13 @@ class MobileNumberOTPGrantTypeTest {
         formParams.add("otp", "123456");
         formParams.add("scope", "openid");
 
+        UriBuilder frontendUriBuilder = mock(UriBuilder.class);
+        when(keycloakContext.getUri(UrlType.FRONTEND)).thenReturn(uriInfo);
+        when(uriInfo.getBaseUriBuilder()).thenReturn(frontendUriBuilder);
+        when(frontendUriBuilder.path("realms")).thenReturn(frontendUriBuilder);
+        when(frontendUriBuilder.path("test-realm")).thenReturn(frontendUriBuilder);
+        when(frontendUriBuilder.build()).thenReturn(URI.create("https://sso.example.com/realms/test-realm"));
+
         UserModel user = mock(UserModel.class);
         when(user.isEnabled()).thenReturn(true);
         when(user.getId()).thenReturn("user-uuid-123");
@@ -397,6 +407,7 @@ class MobileNumberOTPGrantTypeTest {
         assertThat(response.getStatus()).isEqualTo(Response.Status.OK.getStatusCode());
 
         verify(userSession).setNote("otp_verified", "+919876543210");
+        verify(clientSession).setNote(OIDCLoginProtocol.ISSUER, "https://sso.example.com/realms/test-realm");
         verify(event).user(user);
         verify(event).session(userSession);
         verify(event).success();
