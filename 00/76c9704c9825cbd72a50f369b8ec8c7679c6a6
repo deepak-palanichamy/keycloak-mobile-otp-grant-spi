@@ -1,0 +1,14 @@
+Containerfile
+  h_8089bbf333bffc 2-3,5-9,11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0076c9704c9825cbd72a50f369b8ec8c7679c6a6",
+  "prompts": {},
+  "humans": {
+    "h_8089bbf333bffc": {
+      "author": "Deepak Palanisamy <deepakpalanichamy@gmail.com>"
+    }
+  }
+}
