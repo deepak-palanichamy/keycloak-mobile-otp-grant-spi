@@ -8,4 +8,4 @@ RUN /opt/keycloak/bin/kc.sh build --db=postgres --health-enabled=true --metrics-
 
 # Start using the --optimized flag so Keycloak doesn't try to re-build on startup
 ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
-CMD ["start", "--optimized"]
+CMD ["start"]
