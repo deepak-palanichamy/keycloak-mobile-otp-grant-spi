@@ -55,24 +55,26 @@ Configure the grant type via Keycloak configuration file (`keycloak.conf`) or en
 
 | Option | Environment Variable | Required | Description |
 |--------|---------------------|----------|-------------|
-| `verify-url` | `KC_OTP_VERIFY_URL` | Yes | HTTPS endpoint for OTP verification |
-| `shared-secret` | `KC_OTP_SHARED_SECRET` | Yes | Shared secret sent as a Bearer token in the Authorization header |
-| `timeout-seconds` | `KC_OTP_TIMEOUT_SECONDS` | No | Request timeout in seconds (default: 5) |
+| `validation-url` | `KC_USER_OTP_VALIDATION_URL` | Yes | HTTPS endpoint for OTP verification |
+| `shared-secret` | `KC_USER_OTP_SHARED_SECRET` | Yes | Shared secret sent in the `X-Internal-Secret` request header |
+| `timeout-seconds` | `KC_USER_OTP_TIMEOUT_SECONDS` | No | Request timeout in seconds (default: 30). Missing, non-numeric, or non-positive values fall back to the default |
+
+The connect timeout to the OTP service is fixed at 5 seconds.
 
 ### Configuration Example
 
 **Via keycloak.conf:**
 ```properties
-spi-oauth2-grant-type-urn-custom-mobilenumber-otp-verify-url=https://otp-service.example.com/verify
+spi-oauth2-grant-type-urn-custom-mobilenumber-otp-validation-url=https://otp-service.example.com/verify
 spi-oauth2-grant-type-urn-custom-mobilenumber-otp-shared-secret=your-shared-secret-here
 spi-oauth2-grant-type-urn-custom-mobilenumber-otp-timeout-seconds=10
 ```
 
 **Via Environment Variables:**
 ```bash
-export KC_OTP_VERIFY_URL=https://otp-service.example.com/verify
-export KC_OTP_SHARED_SECRET=your-shared-secret-here
-export KC_OTP_TIMEOUT_SECONDS=10
+export KC_USER_OTP_VALIDATION_URL=https://otp-service.example.com/verify
+export KC_USER_OTP_SHARED_SECRET=your-shared-secret-here
+export KC_USER_OTP_TIMEOUT_SECONDS=10
 ```
 
 ## Usage
@@ -85,21 +87,22 @@ Send a POST request to Keycloak's token endpoint with the custom grant type:
 curl -X POST \
   https://keycloak.example.com/realms/your-realm/protocol/openid-connect/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=urn:custom:mobilenumber_otp&client_id=your-client-id&country_iso=IN&mobile_number=9876543210&otp=123456&scope=openid+profile"
+  -d "grant_type=urn:custom:mobilenumber_otp&client_id=your-client-id&region_code=IN&mobile_number=9876543210&otp=123456&transaction_id=abc123&scope=openid+profile"
 ```
 
 ### Parameters
 
 - `grant_type`: Must be `urn:custom:mobilenumber_otp`
 - `client_id`: Your OAuth2 client ID
-- `country_iso`: Required ISO 3166-1 alpha-2 country code, such as `IN` or `US`
-- `mobile_number`: National mobile number for the supplied country, such as `9876543210`
+- `region_code`: Required ISO 3166-1 alpha-2 region code, such as `IN` or `US`
+- `mobile_number`: National mobile number for the supplied region, such as `9876543210`
 - `otp`: One-time password sent to the mobile number
+- `transaction_id`: Optional. Forwarded to the OTP service as `transactionId` when present
 - `scope`: Optional. OpenID Connect scopes (default: `openid`)
 
-The grant validates the number for `country_iso`, accepts it only when
+The grant validates the number for `region_code`, accepts it only when
 `libphonenumber` identifies it as a mobile number, and converts it to E.164
-for OTP verification and user lookup. For example, `country_iso=IN` and
+for OTP verification and user lookup. For example, `region_code=IN` and
 `mobile_number=9876543210` become `+919876543210`.
 
 ### Response
@@ -163,7 +166,10 @@ On successful authentication:
 # Clean build
 mvn clean package
 
-# Skip tests (if any)
+# Run tests only
+mvn test
+
+# Skip tests
 mvn clean package -DskipTests
 
 # With specific Java version
@@ -177,13 +183,15 @@ Output: `target/keycloak-mobile-otp-grant-spi-1.0.0-SNAPSHOT.jar`
 ```text
 keycloak-mobile-otp-grant-spi/
 ├── src/
-│   └── main/
-│       ├── java/com/residentnext/keycloak/grant/
-│       │   ├── MobileNumberOTPGrantType.java          # Main grant implementation
-│       │   └── MobileNumberOTPGrantTypeFactory.java   # Factory implementation
-│       └── resources/
-│           └── META-INF/services/
-│               └── org.keycloak.protocol.oidc.grants.OAuth2GrantTypeFactory
+│   ├── main/
+│   │   ├── java/com/gatehub/keycloak/grant/
+│   │   │   ├── MobileNumberOTPGrantType.java          # Main grant implementation
+│   │   │   └── MobileNumberOTPGrantTypeFactory.java   # Factory implementation
+│   │   └── resources/
+│   │       └── META-INF/services/
+│   │           └── org.keycloak.protocol.oidc.grants.OAuth2GrantTypeFactory
+│   └── test/
+│       └── java/com/gatehub/keycloak/grant/           # Unit tests
 ├── pom.xml                                             # Maven configuration
 └── README.md                                           # This file
 ```
@@ -192,35 +200,37 @@ keycloak-mobile-otp-grant-spi/
 
 Your external OTP verification service should:
 
-1. **Accept HTTPS POST requests** with an `Authorization` header containing the configured shared secret as a Bearer token:
-  
-  ```http
-  Authorization: Bearer your-shared-secret
-  Content-Type: application/json
-  ```
+1. **Accept HTTPS POST requests** with an `X-Internal-Secret` header containing the configured shared secret:
 
-  The request body contains:
+   ```http
+   X-Internal-Secret: your-shared-secret
+   Content-Type: application/json
+   ```
+
+   The request body contains (`transactionId` is included only when the client sent `transaction_id`):
 
    ```json
    {
-     "mobile_number": "+1234567890",
-     "otp": "123456"
+     "countryIso": "IN",
+     "mobileNumber": "+919876543210",
+     "otp": "123456",
+     "transactionId": "abc123"
    }
    ```
 
 2. **Return HTTP 200** with one of these plain-text response bodies for successful verification:
 
-  ```text
+   ```text
    VERIFIED
    ```
 
    or:
 
-  ```text
+   ```text
    ALREADY_VERIFIED
    ```
 
-1. **Return any non-200 status** for an invalid or rejected OTP. The grant treats it as `invalid_grant` with HTTP 401.
+3. **Return any other status or body** for an invalid or rejected OTP. The grant treats it as `invalid_grant` with HTTP 401.
 
 ## Troubleshooting
 
@@ -232,8 +242,8 @@ Your external OTP verification service should:
 
 ### Configuration Errors
 
-- Verify both `verify-url` and `shared-secret` are configured
-- Ensure `verify-url` uses HTTPS protocol
+- Verify both `validation-url` and `shared-secret` are configured
+- Ensure `validation-url` uses HTTPS protocol
 - Check that environment variables are correctly set
 
 ### OTP Verification Failures
@@ -256,6 +266,7 @@ Your external OTP verification service should:
 - **Timeout Configuration**: Set appropriate timeout values to prevent hanging requests
 - **User Validation**: All input is validated before processing
 - **Event Logging**: All authentication attempts are logged in Keycloak events
+- **No Sensitive Logging**: OTPs, mobile numbers, and OTP request payloads are not written to the server log
 
 ## License
 

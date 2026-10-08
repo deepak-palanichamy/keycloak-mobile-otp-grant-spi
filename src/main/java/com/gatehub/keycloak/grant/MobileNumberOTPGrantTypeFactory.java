@@ -52,16 +52,7 @@ public class MobileNumberOTPGrantTypeFactory implements OAuth2GrantTypeFactory {
         String urlStr = config.get("validation-url", System.getenv("KC_USER_OTP_VALIDATION_URL"));
         this.sharedSecret = config.get("shared-secret", System.getenv("KC_USER_OTP_SHARED_SECRET"));
         String timeoutSec = config.get("timeout-seconds", System.getenv("KC_USER_OTP_TIMEOUT_SECONDS"));
-        int requestTimeoutInSec = Integer.valueOf(timeoutSec);
-        if (requestTimeoutInSec <= 0) {
-            logger.info("Mobile OTP SPI: Invalid timeout-seconds configured, using default value "
-                    + DEFAULT_REQUEST_TIMEOUT_INSEC
-                    + " seconds.");
-            requestTimeoutInSec = DEFAULT_REQUEST_TIMEOUT_INSEC;
-        }
-        // Convert timeout to Duration
-        // Note: Duration.ofSeconds() is used here because the timeout is in seconds.
-        this.requestTimeout = Duration.ofSeconds(requestTimeoutInSec);
+        this.requestTimeout = Duration.ofSeconds(parseTimeoutSeconds(timeoutSec));
 
         if (urlStr == null || this.sharedSecret == null) {
             throw new IllegalStateException(
@@ -72,6 +63,31 @@ public class MobileNumberOTPGrantTypeFactory implements OAuth2GrantTypeFactory {
         if (!"https".equalsIgnoreCase(this.otpVerifyUri.getScheme())) {
             throw new IllegalStateException("Mobile OTP SPI: validation-url MUST use HTTPS protocol.");
         }
+    }
+
+    /**
+     * Parses the configured request timeout, falling back to
+     * {@link #DEFAULT_REQUEST_TIMEOUT_INSEC} when it is unset, blank, not a
+     * number, or not positive.
+     *
+     * @param timeoutSec configured timeout in seconds, possibly {@code null}
+     * @return the timeout in seconds to use
+     */
+    static int parseTimeoutSeconds(String timeoutSec) {
+        if (timeoutSec == null || timeoutSec.isBlank()) {
+            return DEFAULT_REQUEST_TIMEOUT_INSEC;
+        }
+        try {
+            int parsed = Integer.parseInt(timeoutSec.trim());
+            if (parsed > 0) {
+                return parsed;
+            }
+        } catch (NumberFormatException e) {
+            // fall through to the default below
+        }
+        logger.warn("Mobile OTP SPI: Invalid timeout-seconds '{}' configured, using default value {} seconds.",
+                timeoutSec, DEFAULT_REQUEST_TIMEOUT_INSEC);
+        return DEFAULT_REQUEST_TIMEOUT_INSEC;
     }
 
     /**
