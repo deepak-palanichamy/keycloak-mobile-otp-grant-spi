@@ -150,8 +150,6 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
                     Response.Status.BAD_REQUEST);
         }
 
-        logger.info("Formatted E.164 mobile number: {}", e164Number);
-
         // 3. Verify OTP with your Custom Auth Service
         if (!verifyOtpWithCustomAuthService(regionCode, e164Number, otp, transId)) {
             event.error(Errors.INVALID_USER_CREDENTIALS);
@@ -286,7 +284,6 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
                 payload.put("transactionId", transactionId);
             }
             String requestBodyJson = JsonSerialization.writeValueAsString(payload);
-            logger.info("requestBodyJson: {}", requestBodyJson);
 
             HttpRequest request = HttpRequest.newBuilder()
                     .timeout(requestTimeout)
@@ -298,7 +295,6 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
 
             HttpResponse<String> response = HTTP_CLIENT.send(request,
                     HttpResponse.BodyHandlers.ofString());
-            logger.info("response: {}", response.body());
 
             // Returns true only if your service responds with 200 OK and
             // 'VERIFIED'/'ALREADY_VERIFIED' body
@@ -320,20 +316,20 @@ public class MobileNumberOTPGrantType extends OAuth2GrantTypeBase {
             }
 
         } catch (HttpTimeoutException e) {
-            logger.warn("OTP verification service timed out for mobile number {}", mobileNumber, e);
+            logger.warn("OTP verification service timed out", e);
             throw new CorsErrorResponseException(cors, OAuthErrorException.SERVER_ERROR,
                     "OTP verification service timed out", Response.Status.GATEWAY_TIMEOUT);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            logger.warn("OTP verification request was interrupted for mobile number {}", mobileNumber, e);
+            logger.warn("OTP verification request was interrupted", e);
             throw new CorsErrorResponseException(cors, OAuthErrorException.SERVER_ERROR,
                     "OTP verification request was interrupted", Response.Status.INTERNAL_SERVER_ERROR);
         } catch (IOException e) {
-            logger.warn("Unable to reach OTP verification service for mobile number {}", mobileNumber, e);
+            logger.warn("Unable to reach OTP verification service", e);
             throw new CorsErrorResponseException(cors, OAuthErrorException.SERVER_ERROR,
                     "Unable to reach OTP verification service", Response.Status.BAD_GATEWAY);
         } catch (RuntimeException e) {
-            logger.error("Unexpected error while verifying OTP for mobile number {}", mobileNumber, e);
+            logger.error("Unexpected error while verifying OTP", e);
             throw new CorsErrorResponseException(cors, OAuthErrorException.SERVER_ERROR,
                     "An unexpected error occurred during OTP verification", Response.Status.INTERNAL_SERVER_ERROR);
         }

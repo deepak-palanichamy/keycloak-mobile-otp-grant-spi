@@ -1,4 +1,4 @@
-package com.residentnext.keycloak.grant;
+package com.gatehub.keycloak.grant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -49,7 +49,6 @@ import org.keycloak.services.CorsErrorResponseException;
 import org.keycloak.services.cors.Cors;
 import org.keycloak.urls.UrlType;
 
-import com.gatehub.keycloak.grant.MobileNumberOTPGrantType;
 import com.sun.net.httpserver.HttpServer;
 
 import jakarta.ws.rs.core.MediaType;
